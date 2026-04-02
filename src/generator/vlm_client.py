@@ -16,7 +16,6 @@ client = OpenAI(
     base_url = "http://localhost:8000/v1"
 )
 
-
 # encode image to b64
 def enc_b64(image, max_size=(512, 512)):
 

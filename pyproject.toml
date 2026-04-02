@@ -1,0 +1,17 @@
+[project]
+name = "rag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "colpali-engine>=0.3.14",
+    "einops>=0.8.2",
+    "matplotlib>=3.10.8",
+    "openai>=2.30.0",
+    "pillow>=12.1.1",
+    "pydantic>=2.12.5",
+    "pymupdf>=1.27.2.2",
+    "pyyaml>=6.0.3",
+    "seaborn>=0.13.2",
+]
