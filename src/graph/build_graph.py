@@ -13,11 +13,10 @@ text_dir = Path(f"{processed_dir}/text")
 json_dir = Path(f"{processed_dir}/json")
 embedding_dir = cfg.dirs.embeddings
 
-# Pool chunk processing
 def process_extraction_task(task):
     chunk_node_id, chunk_text, stem, chunk_id = task
-    print(f"Doc: {stem}, chunk: {chunk_id}.")
-    
+    _, _, clean_chunk_id = chunk_id.partition("chunk_")
+    print(f"Doc: {stem}, chunk: {clean_chunk_id}")
     extraction_data = extract_entities(chunk_text)
     
     return chunk_node_id, extraction_data
@@ -68,18 +67,15 @@ def build_graph():
     results = []
     
     # Concurrency ------------------------------------
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_CHUNKS) as executor:                              # Workers assigned future tasks
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_CHUNKS) as executor:
         assignments = [executor.submit(process_extraction_task, task) for task in tasks]
-        
-        for a in concurrent.futures.as_completed(assignments):
+
+        for future in concurrent.futures.as_completed(assignments):
             try:
-        
-                result = assignments.result()                                                                                # assignment: (chunk_node_id, extraction_data)
+                result = future.result()
                 results.append(result)
-
             except Exception as exc:
-                print(f"Failed: {exc}")
-
+                print(f"Chunk extraction generated an exception: {exc}")
     # EDges -------------------------
     print("\nConnecting edges")
     for chunk_node_id, extraction_data in results:
