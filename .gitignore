@@ -1,0 +1,35 @@
+# Data
+data/raw/
+data/processed/
+
+# db
+qdrant_data/
+~/datasets/qdrant_data/
+
+# Generated artefacts
+embeddings/
+evals/
+lib/
+indexes/
+logs/
+models/
+
+# local config
+configs/config.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pth
+*.pt
+.venv/
+venv/
+.env
+.claude
+
+# extras
+repomix-output.xml
+*.txt
+
+# OS
+.DS_Store

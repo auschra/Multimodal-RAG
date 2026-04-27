@@ -12,7 +12,6 @@ from src.config import load_config
 
 cfg = load_config()
 
-
 # Colpali setup
 print(f"Loading retriever model ({cfg.models.colpali_model})")
 model = ColQwen2.from_pretrained(
@@ -23,25 +22,23 @@ model = ColQwen2.from_pretrained(
 processor = ColQwen2Processor.from_pretrained(cfg.models.colpali_model)
 print("Retriever model loaded")
 
+
+# Perform retreival against visual document embeddings using query 
 def vis_retrieval(query, top_k=None):
+
     top_k = top_k or cfg.retrieval.top_k
     embeddings_path = cfg.dirs.embeddings    
 
-    # ------- for now, load query here and embed -------
-    q_in = processor.process_queries([query]).to(model.device)
     # Embed query
+    q_in = processor.process_queries([query]).to(model.device)
     with torch.no_grad():
         q_embeddings = model(**q_in)
 
-    # run late interaction between query and each embedding 
-    # load embeddings for document
-
-    # ----------------------
-
-    # keep track of (score, page) for each embedding
-    all_scores = []
+    
 
     # Iterate through each document's embeddings
+    # (score, page) for each embedding
+    all_scores = []
     for doc_folder in embeddings_path.iterdir():
         if not doc_folder.is_dir():
             continue
@@ -82,7 +79,6 @@ def vis_retrieval(query, top_k=None):
             # score_multi_vector: expects query embedding, list of document page embeddings
             scores = processor.score_multi_vector(q_embeddings, page_embeddings)
             
-        # scores = (1, page_ref)
         # Pair score with corresponding page
         for score, ref in zip(scores[0], page_references):
             all_scores.append((score.item(), ref))

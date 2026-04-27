@@ -1,0 +1,77 @@
+services:
+  mineru-init:
+    image: mineru:latest
+    container_name: mineru-init
+    command: >
+      sh -c "huggingface-cli download opendatalab/MinerU2.5-Pro-2604-1.2B && 
+      huggingface-cli download opendatalab/PDF-Extract-Kit-1.0"
+    volumes:
+      - /datasets/mineru/models/huggingface:/root/.cache/huggingface
+
+  mineru-api:
+    image: mineru:latest
+    container_name: mineru-api
+    depends_on:
+      mineru-init:
+        condition: service_completed_successfully
+    command: >
+      mineru-router 
+      --host 0.0.0.0 
+      --port 8000 
+      --local-gpus auto
+      --gpu-memory-utilization 0.5
+      --enable-vlm-preload true
+    ports:
+      - "8000:8000"
+    shm_size: 32gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - MINERU_INTRA_OP_NUM_THREADS=8
+      - MINERU_MAX_CONCURRENCY=2
+    volumes:
+      - /datasets/mineru:/root/.mineru:rw
+      - /datasets/mineru/models/huggingface:/root/.cache/huggingface
+      - /storage/bulk/raw_docs:/input:ro
+      - /datasets/scratch/mineru-output:/output:rw
+
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-server
+    ports:
+      - "8001:8000"
+    ipc: host
+    shm_size: 32gb
+    volumes:
+      - /datasets/huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    command: >
+      Qwen/Qwen3-32B-AWQ
+      --max-model-len 8192
+      --gpu-memory-utilization 0.95
+      --api-key EMPTY
+      --enable-prefix-caching
+
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - /datasets/qdrant_data/storage:/qdrant/storage:z

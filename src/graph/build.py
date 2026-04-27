@@ -14,10 +14,8 @@ class BuildGraph:
 
         return doc_node_id
     
-    def assign_node(self, doc_node_id, chunk_text, vec_id, page_no, chunk_type, bbox, heading):      
-        chunk_node_id = f"chunk_{uuid.uuid4().hex[:8]}"
-        safe_bbox = json.dumps(bbox) if bbox else ""
-        safe_vec = str(vec_id) if vec_id else ""
+    def assign_node(self, chunk):      
+        chunk_node_id = chunk.get('chunk_id')
 
         self.G.add_node(
             chunk_node_id, 
@@ -93,7 +91,8 @@ system_prompt = """You are a specialized Knowledge Graph Extraction agent.
 3. DESCRIPTIONS: Provide a brief summary of the chunk, and a 15-word description for each entity.
 4. NO MARKDOWN: Output raw JSON only."""
 
-def extract_entities(chunk_text: str):
+def extract_entities(chunk_list):
+    chunk_text = chunk_list.get("text")
     prompt = f"Analyze the following text and extract the key entities and relationships.\n\nText: {chunk_text}"
     
     response = requests.post(
@@ -101,7 +100,7 @@ def extract_entities(chunk_text: str):
         headers={"Authorization": "Bearer EMPTY"},
 
         json={
-            "model": "cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit",
+            "model": "Qwen/Qwen3-32B-AWQ",
             "messages": [
                 {
                     "role": "system", 
@@ -110,7 +109,7 @@ def extract_entities(chunk_text: str):
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 2048,
-            "temperature": 0.1,             
+            "temperature": 0.5,             
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {

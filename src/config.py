@@ -7,6 +7,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 vlm_model = "Qwen/Qwen2-VL-7B-Instruct-AWQ"
 
 class DirConfig(BaseModel):
+
+    raw_doc_path: Path = Path("/storage/bulk/raw_docs")
     # Define relative paths
     processed_data: Path =  Path("data/processed")
     raw_data: Path = Path("data/raw")
@@ -33,7 +35,7 @@ class DirConfig(BaseModel):
         return path
     
 class ModelConfig(BaseModel):
-    vlm_model: str = "Qwen/Qwen3-VL-4B-Thinking-FP8"
+    vlm_model: str = "Qwen/Qwen3-VL-8B-Instruct-FP8"
     colpali_model: str = "vidore/colqwen2-v1.0"
 
 class RetrievalConfig(BaseModel):

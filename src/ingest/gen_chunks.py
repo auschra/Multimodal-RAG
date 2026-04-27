@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Iterator
 import json
+import uuid
 from dataclasses import dataclass, field
 import requests 
 from openai import OpenAI
@@ -57,7 +58,7 @@ class HybridChunker:
             for x in items:
                 yield from self._iter_blocks(x)
 
-    def gen_chunks(self, content_list, doc_stem):
+    def gen_chunks(self, content_list, idx_content, doc_stem):
         """
         Hybrid chunker
         1. New chunk on heading change
@@ -66,10 +67,10 @@ class HybridChunker:
         Iterate through content.json for a document. Extract text for paragraphs, use headings for contextual prefix and soft chunk separators. 
         """
 
-        uuid = None
         chunk_list = []                     # Confirmed chunks
         chunk_buffer = []                   # Stores blocks to create candidate chunk
         chunk_token_count = 0               # Counts tokens in candidate chunks (also blocks)
+        block_metadata = []
 
         current_level = None
         current_heading = None
@@ -87,15 +88,18 @@ class HybridChunker:
                     chunk_list.append({
                         "chunk_id": str(uuid.uuid4()),                  # Random ID
                         "document_id": doc_stem,                        # Parent doc provenance
-                        "heading": current_heading,                     # Last heading 
+                        "heading": current_heading,                     # Last heading
+                        "raw_chunks": chunk_buffer,
                         "text": "\n".join(chunk_buffer),                # Join text in chunk buffer
-                        "token_count": chunk_token_count                # Count tokens 
-                    })
+                        "token_count": chunk_token_count,                # Count tokens 
+                        "block_metadata": block_metadata})
+                    
                 chunk_buffer = []   
                 chunk_token_count = 0
+                block_metadata = []
 
                 # Get new heading
-                current_heading = block.get('content').get('title_content').get('content')
+                current_heading = block.get('content').get('title_content')[0].get('content')
                 
                 continue        # end heading handling
 
@@ -121,6 +125,7 @@ class HybridChunker:
                     
                     chunk_buffer = [text]
                     chunk_token_count = self.get_token_count(text)
+                    block_metadata = [block.]
 
                 else:                                                   # We are still under token limiit with new block, so assign to current buffer
                     chunk_buffer.append(text)
@@ -195,14 +200,18 @@ def main():
         if not doc_dir.is_dir():
             continue
         
-        json_path = next(doc_dir.glob("auto/*_content_list_v2.json"))          
-        md_path = next(doc_dir.glob("auto/*.md"), None)
+        json_path = next(doc_dir.glob("auto/*_content_list_v2.json"))
+        idx_json_path = next(doc_dir.glob("auto/*_content_list.json"))              # Json containing pg_idx and bboxes  
+        md_path = next(doc_dir.glob("auto/*.md"), None) 
         doc_stem = md_path.stem if md_path else json_path.stem.replace("_content_list_v2", "")
         parent_doc = md_path.read_text(encoding="utf-8") if md_path else ""                     # Full document markdown text
-        
+
+        with idx_json_path.open("r", encoding="utf-8") as f:
+            idx_json = json.load(f)
+
         with json_path.open("r", encoding="utf-8") as f:
             content_json = json.load(f)
-            chunk = chunker.gen_chunks(content_json)
+            chunk = chunker.gen_chunks(content_json, idx_json, doc_stem)
             save_path = chunker.save_chunk(chunk, doc_stem)
 
 if __name__ == "__main__":

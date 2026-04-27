@@ -6,12 +6,20 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "colpali-engine>=0.3.14",
+    "docling>=2.84.0",
+    "docling-core>=2.71.0",
     "einops>=0.8.2",
+    "flagembedding>=1.3.5",
     "matplotlib>=3.10.8",
+    "networkx>=3.4.2",
     "openai>=2.30.0",
     "pillow>=12.1.1",
     "pydantic>=2.12.5",
     "pymupdf>=1.27.2.2",
+    "pyvis>=0.3.2",
     "pyyaml>=6.0.3",
+    "qdrant-client>=1.17.1",
+    "rank-bm25>=0.2.2",
     "seaborn>=0.13.2",
+    "streamlit>=1.56.0",
 ]

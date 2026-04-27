@@ -4,38 +4,67 @@ import uuid
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pathlib import Path
+from src.config import load_config
 
-client = QdrantClient(path="~/datasets/qdrant_data/storage/")
-vec_size = 1024 # BAAI/bge-m3 size
+class DBClient:
+    def __init__(self, url="http://localhost:6333", vec_size=1024):
+        self.client = QdrantClient(url=url)
+        self.vec_size = vec_size
+        self.chunk_summaries = "chunk_summaries"
+        self.entity_descriptions = "entity_descriptions"
+        
+        # To add
+        #self.claim_summary = "claim_summary"
+        #self.community_summary = "community_summary"
 
-# Create new database collection for each abstraction level
-def create_collections():
-    for label in ["chunk_summaries", "entity_descriptions"]:        # List of summaries to create -> may add communities/sections
-        if not client.collection_exists(label):
-            client.create_collection(collection_name=label, vectors_config=VectorParams(size=vec_size, distance=Distance.COSINE),)
+    def setup_collections(self):
+        for label in [self.chunk_summaries, self.entity_descriptions]:
+            if not self.client.collection_exists(label):
+                self.client.create_collection(collection_name=label, vector_config=VectorParams(size=self.vec_size, distance=Distance.COSINE))
+                print(f"Created new database collection for: {label}")
 
-create_collections()
+    def _gen_set_id(self, id_string):
+        # Generate deterministic uuid for given string (wont reset and string not allowed for identifier)
+        uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(id_string)))
+        
+        return uuid
+    
+    def save_chunk(self, chunk_data):
+        points = []
 
-# Save data to its corresponding collection
-def save_data(chunk_data, entity_data):
+        for chunk in chunk_data.to_dict('records'):
+            points.append(PointStruct(
+                id= self._gen_set_id(chunk_data['id']),
+                vector=chunk['embedding'].tolist(),
+                payload={
+                    "text_summary": chunk["text"], 
+                    "doc_id": chunk.get('doc_id'),
+                    "page": chunk.get('page'),
+                    "bbox": chunk.get('bbox')
+                }
+            ))
 
-    chunk_points = []
-    for chunk in chunk_data:
-        chunk_points.append(PointStruct(
-                                id=str(uuid.uuid4()),
-                                vector=['embedding'],
-                                payload={"text_summary": chunk["text_summary"],             # Full text
-                                         "doc_id": chunk['doc_id'],                         # Parent doc node
-                                         "entities": chunk['entities']}))                   # Contained entities
-    client.upsert(collection_name="chunk_summaries", points=chunk_points)                   # Upload to collection
+        self.client.upsert(collection_name="chunk_summaries", points=points)
 
-    ent_points = []
-    for ent in entity_data:
-        ent_points.append(PointStruct(
-                                id=ent['label'],
-                                vector=['embedding'],
-                                payload={"description": ent['description'],                       # Full text
-                                        # "chunk": ent['doc_id'],                                 # Parent chunk node
-                                         "rel_entities": ent['rel_entities']}))                   # Connected entities
-    client.upsert(collection_name="ent_descriptions", points=ent_points)                          # Upload to collection
+        return points
+    
+    def save_entity(self, entity_data):
+        points = []
 
+        for entity in entity_data.to_dict('records'):
+            points.append(PointStruct(
+                id = self._gen_set_id(entity['id']),
+                vector= entity['embedding'].tolist(),
+                payload={
+                    "name": entity.get('name'),
+                    "description": entity.get('description'),
+                    "category": entity.get('category')
+                }
+            ))
+        self.client.upsert(collection_name="entity_descriptions", points=points)
+
+        return points
+    
+    def close(self):
+        self.client.close()

@@ -14,14 +14,12 @@ class ParseResult:
     content_list_path: Path
     middle_json_path: Path
 
-# currently send pdf files to mineruclient -> switch to using file paths when possible
-
 class MinerUClient:
     def __init__(self,
         api_url = "http://localhost:8000",
         host_input_dir: Path = Path("/storage/bulk/raw_docs"),
         container_input_dir = Path("/input"),
-        host_output_dir: Path = Path("/datasets/scratch/mineru-output"),
+        host_output_dir: Path = Path("/datasets/scratch/mineru-output"),    # files exist in stem/stem/auto/
         container_output_dir = Path("/output"),
     ):
         self.api_url = api_url.rstrip("/")
@@ -36,16 +34,14 @@ class MinerUClient:
 
         return str(self.container_input_dir / relative_path)
         
-
+    # Mineru client parse pdf file 
     def parse(self, host_filepath):
-        if not host_filepath.exists():
-            raise FileNotFoundError(f"No file at {host_filepath}")
+        # Error handling necessary?
 
         doc_stem = host_filepath.stem
-        host_output = self.host_output_dir / doc_stem
+        host_output = self.host_output_dir
         host_output.mkdir(parents=True, exist_ok=True)
 
-        # Upload the PDF as multipart, request the artifacts we care about back
         with open(host_filepath, "rb") as f:
             try:
                 response = requests.post(
@@ -74,39 +70,31 @@ class MinerUClient:
                     f"(HTTP {response.status_code}): {detail}"
                 ) from e
 
-        # Save the returned ZIP and extract
+        # save contents of zip then remove
         zip_path = host_output / f"{doc_stem}.zip"
         zip_path.write_bytes(response.content)
 
         with zipfile.ZipFile(zip_path) as z:
             z.extractall(host_output)
-        zip_path.unlink()  # remove zip, keep extracted files
+        zip_path.unlink()                                                          # remove zip, keep extracted files
 
-        # Dynamically find the extracted artifacts
-        try:
-            md_path = list(host_output.rglob("*.md"))[0]
-            content_path = list(host_output.rglob("*_content_list.json"))[0]
-            middle_path = list(host_output.rglob("*_middle.json"))[0]
-        except IndexError:
-            raise FileNotFoundError(f"MinerU ZIP extracted, but expected artifacts are missing in {host_output}")
-
+        # Output file paths 
+        md_path = list(host_output.rglob("*.md"))[0]
+        content_path = list(host_output.rglob("*_content_list_v2.json"))[0]        # content_list.json also exists
+        middle_path = list(host_output.rglob("*_middle.json"))[0]
+        
         return ParseResult(
-            output_dir=host_output,
+            output_dir=self.host_output_dir / doc_stem / "auto",
             markdown_path=md_path,
             content_list_path=content_path,
             middle_json_path=middle_path,
         )
     
-    # Read output file firom dir
-    def read_content_list(self, output_host_dir: Path, pdf_stem: str):
-        # Recursively search for the JSON file to bypass ZIP nesting inconsistencies
-        matches = list(output_host_dir.rglob(f"{pdf_stem}_content_list.json"))
-        
-        if not matches:
-            # Fallback in case MinerU drops the stem prefix in future versions
-            matches = list(output_host_dir.rglob("content_list.json"))
-            
-        if not matches:
-            raise FileNotFoundError(f"Could not find content list JSON anywhere in {output_host_dir}")
-            
-        return json.loads(matches[0].read_text())
+    # Get outputs from file
+    def read_content_list(self, output_host_dir, pdf_stem):
+
+        # May get v1 in future
+        file = list(output_host_dir.rglob(f"{pdf_stem}_content_list_v2.json"))
+        blocks = json.loads(file[0].read_text())
+
+        return blocks
