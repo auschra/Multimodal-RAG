@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import requests 
 from openai import OpenAI
 from transformers import AutoTokenizer
+from itertools import zip_longest
 
 # TOADD
 # - Layout chunking 
@@ -44,6 +45,7 @@ class HybridChunker:
 
         self.tokenizer = AutoTokenizer.from_pretrained('BAAI/bge-m3', trust_remote_code=True)
 
+
     def get_token_count(self, text):
         n_tokens = len(self.tokenizer.encode(text, add_special_tokens=False))
         
@@ -58,92 +60,89 @@ class HybridChunker:
             for x in items:
                 yield from self._iter_blocks(x)
 
-    def gen_chunks(self, content_list, idx_content, doc_stem):
+    def gen_chunks(self, v2_content, doc_stem):
         """
         Hybrid chunker
-        1. New chunk on heading change
-        2. New chunk on token_limit reached
-
-        Iterate through content.json for a document. Extract text for paragraphs, use headings for contextual prefix and soft chunk separators. 
+        - new chunk on heading change or token limit
         """
 
         chunk_list = []                     # Confirmed chunks
         chunk_buffer = []                   # Stores blocks to create candidate chunk
+        block_buffer = []                  # individual block metadatas (block_idx, type, page_idx, bbox)
         chunk_token_count = 0               # Counts tokens in candidate chunks (also blocks)
-        block_metadata = []
-
         current_level = None
         current_heading = None
-
         valid_text_blocks = {"paragraph", "text", "equation", "table", "list"}
 
-        # Go through each block extracted from single document
-        for block in self._iter_blocks(content_list):
+        def flush_chunk():
+            """
+            Assign the current chunk buffer as a new chunk and reset.
+            """
+            nonlocal chunk_buffer, block_buffer, chunk_token_count                  # Redefine local vars
+            if chunk_buffer:
+                chunk_list.append({
+                    "chunk_id": str(uuid.uuid4()),
+                    "document_id": doc_stem,
+                    "heading": current_heading,
+                    "text": "\n".join(chunk_buffer),
+                    "token_count": chunk_token_count,
+                    "block_metas": block_buffer,
+                })
 
-            # 1. Headings (new chunk when hit new heading)
-            if block.get("type") == 'title':                        # "type": "title", "content": {"title_content": [{"type": "text", "content": "**block_text**"], "level": 1,
+            chunk_buffer = []
+            block_buffer = []
+            chunk_token_count = 0
 
-                # Flush chunk buffer
-                if chunk_buffer:
-                    chunk_list.append({
-                        "chunk_id": str(uuid.uuid4()),                  # Random ID
-                        "document_id": doc_stem,                        # Parent doc provenance
-                        "heading": current_heading,                     # Last heading
-                        "raw_chunks": chunk_buffer,
-                        "text": "\n".join(chunk_buffer),                # Join text in chunk buffer
-                        "token_count": chunk_token_count,                # Count tokens 
-                        "block_metadata": block_metadata})
-                    
-                chunk_buffer = []   
-                chunk_token_count = 0
-                block_metadata = []
 
-                # Get new heading
+        for page_idx, page in enumerate(v2_content):
+            for block_idx, block in enumerate(page):
+                block_type = block.get("type")
+                bbox = block.get("bbox")
+                block_meta = {
+                    "block_idx": block_idx,
+                    "page_idx": page_idx,
+                    "block_type": block_type,
+                    "bbox": bbox,
+                }
+
+            # 1. Headings (new chunk when hit new heading) 
+            if block_type == 'title':                        # "type": "title", "content": {"title_content": [{"type": "text", "content": "**block_text**"], "level": 1,
+
+                flush_chunk()
                 current_heading = block.get('content').get('title_content')[0].get('content')
                 
-                continue        # end heading handling
+                continue        
+
 
             # 2. Text handling (+ token limtis)    ******** Handle other allowed block types
-
-            if block.get("type") == "paragraph":
+            if block_type == "paragraph":
 
                 parts = block.get("content", {}).get("paragraph_content", [])
                 text = " ".join(p.get("content", "") for p in parts if isinstance(p, dict) and p.get("type") == "text").strip()
+                
+                if not text:
+
+                    continue
 
                 block_token_count = self.get_token_count(text)
-                chunk_token_count += block_token_count
+
+                # Check if new block would exceed token limit
+                if chunk_buffer and chunk_token_count + block_token_count > self.token_limit:
+                    flush_chunk()
+
                 chunk_buffer.append(text)
+                block_buffer.append(block_meta)
+                chunk_token_count += block_token_count
 
-                if chunk_token_count + block_token_count > self.token_limit and chunk_buffer:     # Flush buffer if we will go over tok limit(we are appending old buffer, so need to assign new block to new buffer)
-                    chunk_list.append({
-                        "chunk_id": str(uuid.uuid4()),                  # Random ID
-                        "document_id": doc_stem,                        # Parent doc provenance
-                        "heading": current_heading,                     # Last heading 
-                        "text": "\n".join(chunk_buffer),                # Join text in chunk buffer
-                        "token_count": chunk_token_count                # Count tokens 
-                    })
-                    
-                    chunk_buffer = [text]
-                    chunk_token_count = self.get_token_count(text)
-                    block_metadata = [block.]
+                continue
 
-                else:                                                   # We are still under token limiit with new block, so assign to current buffer
-                    chunk_buffer.append(text)
-                    chunk_token_count += block_token_count
-
+            # SKIP OTHER TYPES FOR NOW
 
         # Flush last buffer of document
-        if chunk_buffer:
-            chunk_list.append({
-                "chunk_id": str(uuid.uuid4()),
-                "document_id": doc_stem,
-                "heading": current_heading,
-                "text": "\n".join(chunk_buffer),
-                "token_count": chunk_token_count
-            })
+        flush_chunk()
 
+        print(f"{len(chunk_list)} chunks created for {doc_stem}")
 
-        print(f"{len(chunk_list)} chunks created for {doc_stem}") 
         return chunk_list
 
     # LLM call to append context summary to beginng of chunk
