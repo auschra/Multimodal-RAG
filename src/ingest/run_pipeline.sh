@@ -71,11 +71,11 @@ for i in {1..60}; do
     fi
 done
 
-: '
+
 # Read content_list file, generate and write chunks
 echo "Starting chunking and prefix gen"
 python3 -m src.ingest.gen_chunks
-'
+
 # ---------- GEN NODES/EDGES ----------
 
 

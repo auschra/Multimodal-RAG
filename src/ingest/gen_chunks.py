@@ -105,38 +105,38 @@ class HybridChunker:
                     "bbox": bbox,
                 }
 
-            # 1. Headings (new chunk when hit new heading) 
-            if block_type == 'title':                        # "type": "title", "content": {"title_content": [{"type": "text", "content": "**block_text**"], "level": 1,
+                # 1. Headings (new chunk when hit new heading) 
+                if block_type == 'title':                        # "type": "title", "content": {"title_content": [{"type": "text", "content": "**block_text**"], "level": 1,
 
-                flush_chunk()
-                current_heading = block.get('content').get('title_content')[0].get('content')
-                
-                continue        
+                    flush_chunk()
+                    current_heading = block.get('content').get('title_content')[0].get('content')
+                    
+                    continue        
 
 
-            # 2. Text handling (+ token limtis)    ******** Handle other allowed block types
-            if block_type == "paragraph":
+                # 2. Text handling (+ token limtis)    ******** Handle other allowed block types
+                if block_type == "paragraph":
 
-                parts = block.get("content", {}).get("paragraph_content", [])
-                text = " ".join(p.get("content", "") for p in parts if isinstance(p, dict) and p.get("type") == "text").strip()
-                
-                if not text:
+                    parts = block.get("content", {}).get("paragraph_content", [])
+                    text = " ".join(p.get("content", "") for p in parts if isinstance(p, dict) and p.get("type") == "text").strip()
+                    
+                    if not text:
+
+                        continue
+
+                    block_token_count = self.get_token_count(text)
+
+                    # Check if new block would exceed token limit
+                    if chunk_buffer and chunk_token_count + block_token_count > self.token_limit:
+                        flush_chunk()
+
+                    chunk_buffer.append(text)
+                    block_buffer.append(block_meta)
+                    chunk_token_count += block_token_count
 
                     continue
 
-                block_token_count = self.get_token_count(text)
-
-                # Check if new block would exceed token limit
-                if chunk_buffer and chunk_token_count + block_token_count > self.token_limit:
-                    flush_chunk()
-
-                chunk_buffer.append(text)
-                block_buffer.append(block_meta)
-                chunk_token_count += block_token_count
-
-                continue
-
-            # SKIP OTHER TYPES FOR NOW
+                # SKIP OTHER TYPES FOR NOW
 
         # Flush last buffer of document
         flush_chunk()
@@ -200,17 +200,13 @@ def main():
             continue
         
         json_path = next(doc_dir.glob("auto/*_content_list_v2.json"))
-        idx_json_path = next(doc_dir.glob("auto/*_content_list.json"))              # Json containing pg_idx and bboxes  
         md_path = next(doc_dir.glob("auto/*.md"), None) 
         doc_stem = md_path.stem if md_path else json_path.stem.replace("_content_list_v2", "")
         parent_doc = md_path.read_text(encoding="utf-8") if md_path else ""                     # Full document markdown text
 
-        with idx_json_path.open("r", encoding="utf-8") as f:
-            idx_json = json.load(f)
-
         with json_path.open("r", encoding="utf-8") as f:
             content_json = json.load(f)
-            chunk = chunker.gen_chunks(content_json, idx_json, doc_stem)
+            chunk = chunker.gen_chunks(content_json, doc_stem)
             save_path = chunker.save_chunk(chunk, doc_stem)
 
 if __name__ == "__main__":
