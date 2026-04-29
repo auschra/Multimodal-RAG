@@ -73,13 +73,18 @@ done
 
 
 # Read content_list file, generate and write chunks
-echo "Starting chunking and prefix gen"
-python3 -m src.ingest.gen_chunks
+#echo "Starting chunking and prefix gen"
+#python3 -m src.ingest.gen_chunks
 
-# ---------- GEN NODES/EDGES ----------
+# ---------- GEN NODES/EDGES GRAPH----------
+echo "Building graph nodes"
+python3 -m src.graph.build_graph
+
+echo "Extracting entities"
+python3 -m src.graph.extract
 
 
-echo "Stopping vLLM to free VRAM..."
+echo "Stopping vLLM"
 docker compose -f $COMPOSE_FILE stop vllm-server
 sleep 5
 
