@@ -13,6 +13,7 @@ lib/
 indexes/
 logs/
 models/
+notebooks/
 
 # local config
 configs/config.yaml
