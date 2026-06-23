@@ -1,58 +1,92 @@
 import yaml
 from pathlib import Path
+from typing import Any, Dict, Tuple, Type
 from pydantic import BaseModel, field_validator
+from pydantic_settings import (BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource)
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-
-vlm_model = "Qwen/Qwen2-VL-7B-Instruct-AWQ"
+ROOT_DIR = Path(__file__).resolve().parent.parent                   # Relative paths to root
 
 class DirConfig(BaseModel):
 
-    raw_doc_path: Path = Path("/storage/bulk/raw_docs")
-    # Define relative paths
-    processed_data: Path =  Path("data/processed")
+    # Pydantic dirs
+    processed_data: Path = Path("data/processed")
     raw_data: Path = Path("data/raw")
     embeddings: Path = Path("embeddings")
-    indexes: Path = Path("indexes")
-    models: Path = Path("models")
     logs: Path = Path("logs")
-    notebooks: Path = Path("notebooks")
+    chunks: Path = Path("data/chunks")
+    entities: Path = Path("data/entities")
+    graph: Path = Path("data/graph")
     scripts: Path = Path("scripts")
-    services: Path = Path("services")
     generator: Path = Path("src/generator")
     pipelines: Path = Path("src/pipelines")
     retriever: Path = Path("src/retriever")
+    ingest: Path = Path("src/ingest")
 
-    # Create relative paths to the root directory *before* config created
-    @field_validator("*", mode="before")            
-    @classmethod 
-    def resolve_path(cls, val = str | Path):                 
+    # Create relative paths to the root directory before config created, if not already
+    @field_validator("*", mode="before")
+    @classmethod
+    def resolve_path(cls, val: str):
+ 
         path = Path(val)
         if not path.is_absolute():
-            res_path = ROOT_DIR / path
-            res_path.mkdir(parents=True, exist_ok=True)
-            return res_path
+            res = ROOT_DIR / path
+            res.mkdir(parents=True, exist_ok=True)
+            return res
         return path
-    
+
+class MineruConfig(BaseModel):
+    api_url: str = "http://localhost:8000"
+    host_input_dir: Path = Path("/storage/bulk/raw_docs")
+    container_input_dir: Path = Path("/input")
+    host_output_dir: Path = Path("/datasets/scratch/mineru-output")
+    container_output_dir: Path = Path("/output")
+
+class NetworkConfig(BaseModel):
+    vllm_api_base: str = "http://localhost:8001/v1"
+    qdrant_url: str = "http://localhost:6333"
+
+
 class ModelConfig(BaseModel):
-    vlm_model: str = "Qwen/Qwen3-VL-8B-Instruct-FP8"
+    vlm_model: str = "Qwen/Qwen3-32B-AWQ"
     colpali_model: str = "vidore/colqwen2-v1.0"
+    embedding_model: str = "BAAI/bge-m3"
 
-class RetrievalConfig(BaseModel):
-    top_k: int = 3
-    
-# Master config
-class AppConfig(BaseModel):
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="APP_", 
+        env_nested_delimiter="__",
+        env_file=".env", 
+        extra="ignore"
+    )
+
+    # config subclass
     dirs: DirConfig = DirConfig()
+    mineru: MineruConfig = MineruConfig()
+    network: NetworkConfig = NetworkConfig()
     models: ModelConfig = ModelConfig()
-    retrieval: RetrievalConfig = RetrievalConfig()
 
-def load_config(path = "configs/config.yaml"):
-    config_path = ROOT_DIR / path
-    if not config_path.exists():
-        return AppConfig()
+    hf_token: str = ""
+    top_k: int = 3
+    token_limit: int = 1024
+
+    # handling for .yaml variables env > yaml > 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ):
         
-    with open(config_path, "r") as f:
-        data = yaml.safe_load(f) or {}
+        def yaml_settings_source(settings: BaseSettings) -> Dict[str, Any]:
+            config_path = ROOT_DIR / "configs" / "config.yaml"
+            if config_path.exists():
+                with open(config_path) as f:
+                    return yaml.safe_load(f) or {}
+            return {}
+        
+        return (init_settings, env_settings, dotenv_settings, yaml_settings_source, file_secret_settings)
 
-    return AppConfig(**data)
+config = Settings()
