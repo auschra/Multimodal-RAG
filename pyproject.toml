@@ -1,7 +1,7 @@
 [project]
 name = "rag"
 version = "0.1.0"
-description = "Add your description here"
+description = "Graphrag"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -19,6 +19,7 @@ dependencies = [
     "pyvis>=0.3.2",
     "pyyaml>=6.0.3",
     "qdrant-client>=1.17.1",
+    "ragas>=0.4.3",
     "rank-bm25>=0.2.2",
     "seaborn>=0.13.2",
     "streamlit>=1.56.0",
