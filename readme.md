@@ -8,11 +8,11 @@ Purpose of this project is to develop a pipeline for large scale scientific pape
 | PDF ingestion (MinerU)                           | Complete      |
 | Hybrid chunking + contextual prefixing           | Complete      |
 | Graph construction (entity & relation extraction)| Complete      |
-| Multimodal block handling (figures, equations)   | In progress   |
-| Retrieval pipeline                               | In progress   |
-| Generation (vLLM + Qwen3-VL)                     | In progress   |
+| Multimodal block handling (figures, equations)   | Complete      |
+| Retrieval pipeline                               | Complete      |
+| Generation (vLLM + Gemma4)                       | Complete      |
 | ColPali visual retrieval                         | Planned       |
-| RAGAS evaluation harness                         | Planned       |
+| RAGAS evaluation harness                         | In Progress   |
 
 
 ## Architecture 
@@ -39,14 +39,19 @@ Graph preferenced over standard naive RAG due to need for complex multi step rea
 - Initial retrieval based on cosine similarity of query with query decomp. 
 - Semantic graph traversal to detect relevant chunks that werent retrieved
 
-- Optional colapli reranking
+- Optional colpali reranking
 - Pass all retrieved documents through colpali to get more finegrained embeddings of content ()
 - Then use chunked text + VLM on figures and graphs to pass through to generator context window
 
 ## 5. Evals
-- TODO
-- 
+Evaluation is automated via a RAGAS harness that runs on every push to main through GitHub Actions, using a self-hosted runner on the workstation to access the RTX 3090 and local services.
 
-## Design Considerations
-Due to the complexity of conducting open ended research on a wide variety of topics over a large number of documents, a GraphRAG approach was chosen over standard RAG giving it the ability to perform multi-step reasoning between various locations in a document and between documents. LLM model
-Gemma 3 30B AWQ model was chosen for all of the LLM querying functionality due to balancing its native multi-modal capabilities and also GPU resource constraints. 
+**Metrics tracked:**
+
+- `faithfulness` whether answer is based on retrieved context
+- `answer_relevancy`, whether answer addresses query
+- `context_precision` whether retrieved chunks are relevant to query
+
+- `evals/test_dataset.json` contains QA pairs with ground truth answers drawn from the ingested scientific literature
+- `evals/run_eval.py` pushes each question through the full inference pipeline (`RunInference`) and collects the query, retrieved contexts, generated answer, and ground truth
+- RAGAS scores the collected traces using a local judge LLM (vLLM + Qwen3-32B-AWQ) and embedding model (BAAI/bge-m3)
