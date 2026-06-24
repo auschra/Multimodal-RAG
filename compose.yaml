@@ -5,6 +5,12 @@ services:
     command: >
       sh -c "huggingface-cli download opendatalab/MinerU2.5-Pro-2604-1.2B && 
       huggingface-cli download opendatalab/PDF-Extract-Kit-1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
     volumes:
       - /datasets/mineru/models/huggingface:/root/.cache/huggingface
 
@@ -58,6 +64,12 @@ services:
               capabilities: [gpu]
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     command: >
       Qwen/Qwen3-32B-AWQ
       --max-model-len 8192
@@ -73,5 +85,11 @@ services:
     ports:
       - "6333:6333"
       - "6334:6334"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:6333/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
     volumes:
       - /datasets/qdrant_data/storage:/qdrant/storage:z
