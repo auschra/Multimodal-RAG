@@ -8,7 +8,7 @@ qdrant_data/
 
 # Generated artefacts
 embeddings/
-evals/
+evals/generated_datasets/
 lib/
 indexes/
 logs/
