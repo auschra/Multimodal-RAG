@@ -1,7 +1,7 @@
 from openai import OpenAI
 from src.config import config
 
-model = config.models.vlm_model
+model = config.models.llm_model
 
 router_prompt = """You are a query router for a scientific literature RAG system.
                     Classify the query into exactly one of: 'text', 'visual', or 'hybrid'.
@@ -13,8 +13,8 @@ router_prompt = """You are a query router for a scientific literature RAG system
                     Output only the single word classification."""
 
 def route_query(query, llm_client):
-    response = llm_client.chat.completions.create(
-        model = config.models.vlm_model,
+    response = llm_client.complete(
+        model = config.models.llm_model,
         messages = [
                     {"role": "system", "content": router_prompt},
                     {"role": "user", "content": query}
