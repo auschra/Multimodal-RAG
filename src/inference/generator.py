@@ -26,26 +26,28 @@ Never silently answer from general knowledge without flagging it. The user must 
 - If a chunk is only tangentially relevant, note this rather than treating it as strong evidence."""
 
 def format_chunks(chunks: list[dict])->str:
-    # Format chunks returned by graph search so they can be added to context window.
-    # Need to deduplicate chunk_ids, and sort by score desc, some context for the LLM of importance
+    """
+    - Format chunks returned by graph search so they can be added to context window
+    - Dedup chunk ids, sort by cosim score
+    - output text string + metadata
+    """
 
     read = {}
     for chunk in chunks:
 
         # Check if chunk is new or if not, if new instance has higher score, add to list
         if chunk["chunk_id"] not in read or chunk.get("score", 0) > read[chunk["chunk_id"]].get("score", 0):
-            read[chunk["chunk_id"]]
+            read[chunk["chunk_id"]] = chunk
 
-    deduped_chunks = sorted(read.values, key=lambda x: x.get("score", 0), reverse=True)
-    
-    # Format chunk content for context window
+    # sort by cosim
+    deduped_chunks = sorted(read.values(), key=lambda x: x.get("score", 0), reverse=True)
+
     lines = []
-    for i, chunnk in enumerate(deduped_chunks, 1):
+    for i, chunk in enumerate(deduped_chunks, 1):
         # Find where the chunk came from (graph traversal or initial retrieval)
         source = "[graph_search]" if chunk.get("source") == "graph_hop" else "[retrieval]"
-
-        # Get heading of chunking
-        heading = f"| {chunk["heading"]}" if {chunk.get("heading")} else ""
+        # Heading metadata
+        heading = f"| {chunk['heading']}" if chunk.get("heading") else ""
 
         lines.append(
             f"[{i}] {source} doc: {chunk.get('document_id', 'unknown')}"
@@ -58,24 +60,26 @@ def format_chunks(chunks: list[dict])->str:
 
 
 def generate(query: str, chunks: list[dict], llm_client: OpenAI)-> dict:
+    """
+    Generate answer given chunk context and query
+    - return dict with answer, incl context, token usage
+    """
 
-    text_context = format(chunks)
+    # Chunk context
+    text_context = format_chunks(chunks)
+    print(f"Text context {text_context}")
 
-    response = llm_client.chat.completions.create(
-        model = config.models.vlm_model,
+    response = llm_client.complete(
         messages = [{"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Context:\n{text_context}\n\nQuestion: {query}"},
         ],
-
-        temperature = 0.4,
-        max_tokens = config.token_limit,
+        temperature = config.generator_temperature,
+        max_tokens = min(config.token_limit, 500)
     )
-
-    result = response.choices[0].message.content.strip().lower()
-
     
     return {
         "answer": response.choices[0].message.content.strip(),
+                            # change to page_content i think
         "contexts": [c.get("text", "") for c in chunks],
         "usage": {
             "prompt_tokens": response.usage.prompt_tokens,
