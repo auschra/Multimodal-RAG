@@ -1,10 +1,8 @@
 import os
 from pathlib import Path
 import networkx as nx
-from src.ingestion.builder import BuildGraph
 from src.config import config
 import json
-
 
 class BuildGraph:
     def __init__(self):
