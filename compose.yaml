@@ -47,7 +47,7 @@ services:
       - /datasets/scratch/mineru-output:/output:rw
 
   vllm-server:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:latest 
     container_name: vllm-server
     ports:
       - "8001:8000"
@@ -65,19 +65,23 @@ services:
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      test: ["CMD", "curl", "-f", "-H", "Authorization: Bearer EMPTY", "http://localhost:8000/v1/models"]
       interval: 15s
       timeout: 5s
       retries: 30
       start_period: 30s
     command: >
-      Qwen/Qwen3-32B-AWQ
-      --max-model-len 8192
-      --gpu-memory-utilization 0.95
+      cyankiwi/gemma-4-12B-it-AWQ-INT4
+      --max-model-len 16384
+      --gpu-memory-utilization 0.9
       --api-key EMPTY
       --enable-prefix-caching
-
-
+      --enable-chunked-prefill
+      --enforce-eager
+      --trust-remote-code
+      --max-num-seqs 8
+      --max-num-batched-tokens 16384
+ 
   qdrant:
     image: qdrant/qdrant:v1.17.1
     container_name: qdrant
