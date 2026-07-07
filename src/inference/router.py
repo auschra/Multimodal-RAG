@@ -13,18 +13,16 @@ router_prompt = """You are a query router for a scientific literature RAG system
                     Output only the single word classification."""
 
 def route_query(query, llm_client):
-    response = llm_client.complete(
-        model = config.models.llm_model,
+    result = llm_client.complete(
         messages = [
                     {"role": "system", "content": router_prompt},
                     {"role": "user", "content": query}
                     ],
-
-        temperature=0.0,
+        temperature=config.router_temperature,
         max_tokens=10,
     )
 
-    result = response.choices[0].message.content.strip().lower()
+    result = result.choices[0].message.content.strip().lower()
 
     # default to text if unexpected result
     if result not in ("text", "visual", "hybrid"):

@@ -52,10 +52,10 @@ def traverse(query_embedding: list[float],
             # Add these chunks to read chunks, and expanded network
             for chunk_id in new_chunk_ids:
                 read_chunks.add(chunk_id)
-                node_data = graph.node[chunk_id]
+                node_data = graph.nodes[chunk_id]
                 expanded.append({
                     "chunk_id": chunk_id,
-                    "text": node_data.get("text", ""),
+                    "text": node_data.get("summary_text", ""),
                     "document_id": node_data.get("document_id", ""),
                     "heading": node_data.get("heading", ""),
                     "score": float(similarity),   # use as a score

@@ -31,7 +31,7 @@ def format_chunks(chunks: list[dict])->str:
     - Dedup chunk ids, sort by cosim score
     - output text string + metadata
     """
-
+    print(chunks)
     read = {}
     for chunk in chunks:
 
@@ -67,7 +67,6 @@ def generate(query: str, chunks: list[dict], llm_client: OpenAI)-> dict:
 
     # Chunk context
     text_context = format_chunks(chunks)
-    print(f"Text context {text_context}")
 
     response = llm_client.complete(
         messages = [{"role": "system", "content": system_prompt},

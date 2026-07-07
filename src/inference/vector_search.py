@@ -3,12 +3,11 @@ from src.clients.db_client import QdrantClient
 
 def retrieve_chunks(query_embedding: list[float], 
                     qdrant: QdrantClient, 
-                    collection: str = "chunks", 
+                    collection: str = "chunk_summaries", 
                     top_k=5) -> list[dict]: 
     """
     Perform pure cosine similarity matching with embedded qdrant database
     Return top k chunks with metadata as initial nodes in graph."""
-
 
     results = qdrant.client.query_points(
         collection_name=collection,
@@ -18,10 +17,11 @@ def retrieve_chunks(query_embedding: list[float],
     )
     
     chunks = [
-        {   "chunk_id": r.id,
+        {   "chunk_id": r.payload.get("chunk_id"),
             "score": r.score,
-            "text": r.payload.get("text", ""),
-            "document_id": r.payload.get("document_id", ""),
+            "text": r.payload.get("page_content", ""),
+            "summary": r.payload.get("summary_text", ""),
+            "document_id": r.payload.get("document_id", "unknown"),
             "heading": r.payload.get("heading", ""),
         } for r in results.points
     ]
